@@ -1,0 +1,37 @@
+{
+  "name": "vectrix-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VECTRIX OS — engineering-to-installation workspace. Engineering intelligence. Built for the field.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.9"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @vectrix/web",
+    "build": "npm run build --workspace @vectrix/web",
+    "start": "npm run start --workspace @vectrix/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspace @vectrix/core && npm run test --workspace @vectrix/electrical && npm run test --workspace @vectrix/web",
+    "test:unit": "npm run test --workspace @vectrix/core && npm run test --workspace @vectrix/electrical",
+    "test:e2e": "npm run test:e2e --workspace @vectrix/web",
+    "db:push": "npm run db:push --workspace @vectrix/web",
+    "db:migrate": "npm run db:migrate --workspace @vectrix/web",
+    "db:seed": "npm run db:seed --workspace @vectrix/web",
+    "db:reset": "npm run db:reset --workspace @vectrix/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "format:check": "prettier --check \"{apps,packages}/**/*.{ts,tsx,css,json,md}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "eslint": "^10.13.0",
+    "eslint-config-next": "^16.4.3",
+    "prettier": "^3.9.10",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.72.1"
+  }
+}

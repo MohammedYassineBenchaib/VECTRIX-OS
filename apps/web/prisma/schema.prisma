@@ -1,0 +1,360 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite is used for the self-contained development build so the repository runs
+// without Docker/PostgreSQL. The schema deliberately uses portable column types
+// only. Production targets PostgreSQL; see docs/adr/0002-postgres-production-sqlite-dev.md.
+
+model Organization {
+  id        String   @id
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  memberships Membership[]
+  projects    Project[]
+  audits      AuditEvent[]
+}
+
+model User {
+  id           String   @id
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  memberships Membership[]
+  sessions    Session[]
+  projects    Project[]  @relation("ProjectCreator")
+  audits      AuditEvent[]
+}
+
+model Membership {
+  id        String   @id
+  orgId     String
+  userId    String
+  role      String
+  createdAt DateTime @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([userId])
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Project {
+  id                        String   @id
+  orgId                     String
+  name                      String
+  code                      String
+  clientName                String   @default("")
+  address                   String   @default("")
+  country                   String   @default("PT")
+  jurisdiction              String   @default("PT")
+  supplyPresetKey           String
+  phaseVoltageV             Float
+  lineVoltageV              Float
+  frequencyHz               Float
+  earthingSystem            String
+  voltageDropLimitLightingPct Float
+  voltageDropLimitOtherPct  Float
+  status                    String
+  notes                     String   @default("")
+  createdBy                 String
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  creator   User         @relation("ProjectCreator", fields: [createdBy], references: [id])
+  buildings Building[]
+  circuits  Circuit[]
+  routes    Route[]
+  connections Connection[]
+  validations ValidationResult[]
+  revisions Revision[]
+
+  @@unique([orgId, code])
+  @@index([orgId])
+}
+
+model Building {
+  id        String   @id
+  projectId String
+  name      String
+  address   String   @default("")
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  levels  Level[]
+
+  @@index([projectId])
+}
+
+model Level {
+  id              String   @id
+  buildingId      String
+  name            String
+  elevationMm     Int      @default(0)
+  planWidthMm     Int
+  planHeightMm    Int
+  sortOrder       Int      @default(0)
+  underlayUrl     String?
+  underlayOpacity Float    @default(1)
+  underlayScale   Float    @default(1)
+  notes           String   @default("")
+
+  building Building  @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  rooms    Room[]
+  walls    Wall[]
+  equipment Equipment[]
+  routes   Route[]
+
+  @@index([buildingId])
+}
+
+model Room {
+  id            String @id
+  levelId       String
+  name          String
+  number        String @default("")
+  polygonJson   String
+  clearHeightMm Int
+  occupancy     String
+  notes         String @default("")
+
+  level     Level      @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  equipment Equipment[]
+
+  @@index([levelId])
+}
+
+model Wall {
+  id               String  @id
+  levelId          String
+  startX           Int
+  startY           Int
+  endX             Int
+  endY             Int
+  thicknessMm      Int
+  heightMm         Int
+  kind             String
+  material         String
+  loadBearing      Boolean @default(false)
+  allowPenetration Boolean @default(false)
+
+  level Level @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  @@index([levelId])
+}
+
+model Equipment {
+  id                  String   @id
+  levelId             String
+  roomId              String?
+  definitionKey       String
+  label               String
+  xMm                 Float
+  yMm                 Float
+  rotationDeg         Float    @default(0)
+  mountingHeightMm    Int
+  circuitId           String?
+  phase               String?
+  loadVAOverride      Float?
+  powerFactorOverride Float?
+  installationState   String   @default("planned")
+  source              String   @default("manual")
+  notes               String   @default("")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  level    Level     @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  room     Room?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  circuit  Circuit?  @relation(fields: [circuitId], references: [id], onDelete: SetNull)
+  terminals Terminal[]
+
+  @@index([levelId])
+  @@index([circuitId])
+}
+
+model Terminal {
+  id          String @id
+  equipmentId String
+  designation String
+  function    String
+  capacity    Int
+
+  equipment   Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  outgoing    Connection[] @relation("ConnectionFrom")
+  incoming    Connection[] @relation("ConnectionTo")
+
+  @@unique([equipmentId, designation])
+  @@index([equipmentId])
+}
+
+model Circuit {
+  id                  String   @id
+  projectId           String
+  boardEquipmentId    String?
+  name                String
+  description         String   @default("")
+  type                String
+  phaseMode           String
+  breakerRatingA      Float
+  breakerCurve        String
+  rcdSensitivityMa    Int?
+  rcdRatingA          Float?
+  cableTypeKey        String
+  cableSectionMm2     Float
+  demandFactor        Float
+  voltageDropLimitPct Float?
+  color               String
+  notes               String   @default("")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  project  Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  equipment Equipment[]
+  routes   Route[]
+
+  @@index([projectId])
+}
+
+model Route {
+  id                      String   @id
+  projectId               String
+  levelId                 String
+  circuitId               String?
+  fromEquipmentId         String?
+  toEquipmentId           String?
+  status                  String
+  method                  String
+  conduitKey              String?
+  cableTypeKey            String?
+  pointsJson              String
+  lengthMm                Float
+  slackPercent            Float    @default(10)
+  diagnosticsJson         String   @default("[]")
+  notes                   String   @default("")
+  createdAt               DateTime @default(now())
+  createdBy               String
+  validatedAt             DateTime?
+  validatedRuleSetVersion String?
+
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  level       Level          @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  circuit     Circuit?       @relation(fields: [circuitId], references: [id], onDelete: SetNull)
+  segments    RouteSegment[]
+
+  @@index([projectId])
+  @@index([levelId])
+  @@index([circuitId])
+}
+
+model RouteSegment {
+  id       String @id
+  routeId  String
+  sequence Int
+  startX   Int
+  startY   Int
+  endX     Int
+  endY     Int
+  lengthMm Float
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@unique([routeId, sequence])
+}
+
+model Connection {
+  id             String   @id
+  projectId      String
+  fromTerminalId String
+  toTerminalId   String
+  kind           String
+  notes          String   @default("")
+  createdAt      DateTime @default(now())
+
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fromTerminal Terminal @relation("ConnectionFrom", fields: [fromTerminalId], references: [id], onDelete: Cascade)
+  toTerminal   Terminal @relation("ConnectionTo", fields: [toTerminalId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model ValidationResult {
+  id              String    @id
+  projectId       String
+  dedupeKey       String
+  levelId         String?
+  ruleId          String
+  ruleSetVersion  String
+  severity        String
+  status          String
+  discipline      String
+  entityType      String
+  entityId        String
+  message         String
+  detailsJson     String    @default("{}")
+  createdAt       DateTime  @default(now())
+  decidedAt       DateTime?
+  decidedBy       String?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, dedupeKey])
+  @@index([projectId, status])
+}
+
+model Revision {
+  id          String   @id
+  projectId   String
+  label       String
+  status      String
+  snapshotJson String
+  note        String   @default("")
+  createdAt   DateTime @default(now())
+  createdBy   String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model AuditEvent {
+  id         String   @id
+  orgId      String
+  projectId  String?
+  actorId    String
+  action     String
+  entityType String
+  entityId   String
+  payloadJson String  @default("{}")
+  createdAt  DateTime @default(now())
+
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actor User         @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+  @@index([projectId, createdAt])
+}
