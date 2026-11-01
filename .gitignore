@@ -1,0 +1,45 @@
+# Legacy, unrelated projects kept on disk for reference only
+ecotrack/
+ecotrack-backup-20261008/
+roometo/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Local databases and uploaded artefacts
+apps/web/prisma/dev.db
+apps/web/prisma/dev.db-journal
+apps/web/prisma/test.db
+apps/web/prisma/test.db-journal
+apps/web/.data/
+apps/web/uploads/
+*.db
+*.db-journal
+
+# Tests
+test-results/
+playwright-report/
+blob-report/
+coverage/
+apps/web/e2e/.auth/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
